@@ -308,37 +308,49 @@
 
     (let [src (if (or (sequential? body') (s/stream? body'))
                 (->> body'
-                  s/->source
-                  (s/map (fn [x]
-                           (try
-                             (netty/to-byte-buf x)
-                             (catch Throwable e
-                               (log/error e "error converting " (.getName (class x)) " to ByteBuf")
-                               (netty/close ch))))))
+                     s/->source
+                     (s/map (fn [x]
+                              (try
+                                (netty/to-byte-buf x)
+                                (catch Throwable e
+                                  (log/error e "error converting " (.getName (class x)) " to ByteBuf")
+                                  (netty/close ch))))))
                 (netty/to-byte-buf-stream body' 8192))
+          ;; mustn't close over body' if NOT a stream, can hold on to data too long if conns are keep-alive
+          ch-close-handler (if (s/stream? body')
+                             #(s/close! body')
+                             #(s/close! src))
 
           sink (netty/sink ch false #(DefaultHttpContent. %))]
 
+      ;;(s/on-drained src #(println "send-streaming-body src drained"))
+      ;;(s/on-closed src #(println "send-streaming-body src closed"))
+
       (s/connect src sink)
+      #_(s/connect src sink {:upstream? true :description "send-streaming-body: body' -> netty/sink"})
 
       (-> ch
-        netty/channel
-        .closeFuture
-        netty/wrap-future
-        (d/chain' (fn [_] (if (s/stream? body')
-                            (s/close! body')
-                            (s/close! src)))))
+          netty/channel
+          .closeFuture
+          netty/wrap-future
+          (d/chain' (fn [_]
+                      ;;(println "Closing send-streaming-body body' / src")
+                      (ch-close-handler)
+                      #_(if (s/stream? body')
+                          (s/close! body')
+                          (s/close! src)))))
 
       (let [d (d/deferred)]
         (s/on-closed sink
-          (fn []
+                     (fn []
+                       ;;(println "send-streaming-body sink closed")
+                       (when (instance? Closeable body)
+                         ;;(println "closing body (with no ')")
+                         (.close ^Closeable body))
 
-            (when (instance? Closeable body)
-              (.close ^Closeable body))
-
-            (.execute (-> ch aleph.netty/channel .eventLoop)
-              #(d/success! d
-                 (netty/write-and-flush ch empty-last-content)))))
+                       (.execute (-> ch aleph.netty/channel .eventLoop)
+                                 #(d/success! d
+                                              (netty/write-and-flush ch empty-last-content)))))
         d))
 
     (netty/write-and-flush ch empty-last-content)))
@@ -460,6 +472,7 @@
     (netty/write-and-flush ch empty-last-content)))
 
 (defn send-file-body [ch ssl? ^HttpMessage msg ^HttpFile file]
+  ;;(println "send-file-body")
   (cond
     ssl?
     (send-streaming-body ch msg
@@ -495,13 +508,14 @@
       ;; extracted to make `send-message` more inlineable
       handle-cleanup
       (fn [ch f]
+        ;;(println "handle-cleanup")
         (-> f
-          (d/chain'
-            (fn [^ChannelFuture f]
-              (if f
-                (.addListener f ChannelFutureListener/CLOSE)
-                (netty/close ch))))
-          (d/catch' (fn [_]))))]
+            (d/chain'
+              (fn [^ChannelFuture f]
+                (if f
+                  (.addListener f ChannelFutureListener/CLOSE)
+                  (netty/close ch))))
+            (d/catch' (fn [_]))))]
 
   (defn send-message
     [ch keep-alive? ssl? ^HttpMessage msg body]

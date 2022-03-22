@@ -423,7 +423,9 @@
 
       (d/chain'
         (wrap-future (.closeFuture (channel ch)))
-        (fn [_] (s/close! sink)))
+        (fn [_]
+          ;;(println "Closing sink channel")
+          (s/close! sink)))
 
       (doto sink (reset-meta! {:aleph/channel ch})))))
 
