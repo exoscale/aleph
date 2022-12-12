@@ -12,7 +12,8 @@
     [client-middleware :as middleware]
     [core :as http-core]]
    [aleph.netty :as netty]
-   [clojure.java.io :as io])
+   [clojure.java.io :as io]
+   [clojure.tools.logging :as log])
   (:import
    [io.aleph.dirigiste Pools]
    [aleph.utils
@@ -54,6 +55,7 @@
    | `continue-executor` | optional `java.util.concurrent.Executor` which is used to handle requests passed to :continue-handler.  To avoid this indirection you may specify `:none`, but in this case extreme care must be taken to avoid blocking operations on the handler's thread.
    | `shutdown-timeout` | interval in seconds within which in-flight requests must be processed, defaults to 15 seconds. A value of 0 bypasses waiting entirely."
   [handler options]
+  (log/infof "http/start-server with shutdown-timeout %d" (:shutdown-timeout options))
   (server/start-server handler options))
 
 (defn- create-connection

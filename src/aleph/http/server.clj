@@ -586,6 +586,7 @@
          compression? false
          shutdown-timeout netty/default-shutdown-timeout}
     :as options}]
+  (log/infof "server/start-server with shutdown-timeout %d" shutdown-timeout)
   (let [executor (cond
                    (instance? Executor executor)
                    executor

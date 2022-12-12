@@ -1272,6 +1272,7 @@ initialize an DnsAddressResolverGroup instance.
     on-close
     socket-address
     epoll?]
+   (log/info "netty/start-server without shutdown-timeout")
    (start-server {:pipeline-builder    pipeline-builder
                   :ssl-context         ssl-context
                   :bootstrap-transform bootstrap-transform
@@ -1286,6 +1287,7 @@ initialize an DnsAddressResolverGroup instance.
             transport
             shutdown-timeout]
      :or {shutdown-timeout default-shutdown-timeout}}]
+   (log/infof "netty/start-server with shutdown-timeout %d" shutdown-timeout)
    (when (= transport :epoll)
      (ensure-epoll-available!))
    (let [num-cores      (.availableProcessors (Runtime/getRuntime))
@@ -1335,6 +1337,7 @@ initialize an DnsAddressResolverGroup instance.
              (when (compare-and-set! closed? false true)
                ;; This is the three step closing sequence:
                ;; 1. Stop listening to incoming requests
+               (log/infof "stop listening with shutdown-timeout %d" shutdown-timeout)
                (-> ch .close .sync)
                (-> (if (pos? shutdown-timeout)
                      ;; 2. Wait for in-flight requests to stop processing within the supplied timeout
@@ -1344,6 +1347,7 @@ initialize an DnsAddressResolverGroup instance.
                      (d/success-deferred ::noop))
                    (d/chain'
                     (fn [shutdown-output]
+                      (log/infof "timeout with shutdown-timeout %d" shutdown-timeout)
                       (when (= shutdown-output ::timeout)
                         (log/error
                          (format "Timeout while waiting for requests to close (exceeded: %ss)"
