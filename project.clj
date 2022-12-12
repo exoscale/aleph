@@ -1,7 +1,7 @@
 ;; you'll need to run the script at `deps/lein-to-deps` after changing any dependencies
 (def netty-version "4.1.85.Final")
 
-(defproject com.exoscale/aleph "0.6.0-rc3"
+(defproject com.exoscale/aleph "0.6.0"
   :description "A framework for asynchronous communication"
   :repositories {"jboss" "https://repository.jboss.org/nexus/content/groups/public/"
                  "sonatype-oss-public" "https://oss.sonatype.org/content/groups/public/"}
